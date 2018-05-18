@@ -9,12 +9,17 @@
 #import "CommonWebView.h"
 #import <WebKit/WebKit.h>
 
-@interface CommonWebView () <WKNavigationDelegate, WKUIDelegate>
+
+#define kAYNavigationBarHeight ([[UIApplication sharedApplication] statusBarFrame].size.height + 44.f)
+
+@interface CommonWebView () <WKNavigationDelegate, WKUIDelegate, UIGestureRecognizerDelegate>
 
 // WKWebView
 @property (nonatomic, strong) WKWebView *wkWebView;
 // 进度条
 @property (nonatomic, strong) UIProgressView *progressView;
+//图片链接数组
+@property (strong, nonatomic)NSMutableArray * mArrayUrl;
 
 @end
 
@@ -122,7 +127,10 @@ static CGFloat const progressViewHeight = 2;
             }
         }];
     } else {
-        // Fallback on earlier versions
+        //iOS8清除缓存
+        NSString *libraryPath =  NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *cookiesFolderPath = [libraryPath stringByAppendingString:@"/Cookies"];
+        [[NSFileManager defaultManager] removeItemAtPath:cookiesFolderPath error:nil];
     }
 }
 
@@ -168,6 +176,7 @@ static CGFloat const progressViewHeight = 2;
         [self.delegate webView:self didFinishLoadWithURL:webView.URL];
     }
     self.progressView.alpha = 0.0;
+    [self getImageUrlByJS:webView];
 }
 // 页面加载失败时调用
 - (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
@@ -199,6 +208,116 @@ static CGFloat const progressViewHeight = 2;
         _progressView.tintColor = [UIColor greenColor];
         [self addSubview:_progressView];
     }
+}
+
+//图片数组
+- (NSMutableArray *)mArrayUrl {
+    if (!_mArrayUrl) {
+        _mArrayUrl = [NSMutableArray array];
+    }
+    return _mArrayUrl;
+}
+
+#pragma mark ========= 点击获取所有图片，并查看大图 ========================
+//通过js获取htlm中图片url
+-(void)getImageUrlByJS:(WKWebView *)wkWebView{
+    
+    //js方法遍历图片添加点击事件返回图片个数
+    //这里是js，主要目的实现对url的获取
+    static  NSString * const jsGetImages =
+    @"function getImages(){\
+    var objs = document.getElementsByTagName(\"img\");\
+    var imgScr = '';\
+    for(var i=0;i<objs.length;i++){\
+    imgScr = imgScr + objs[i].src + '+';\
+    };\
+    return imgScr;\
+    };";
+    
+    //用js获取全部图片,传质给js
+    [wkWebView evaluateJavaScript:jsGetImages completionHandler:nil];
+    
+    //得到所有图片
+    NSString *jsString = @"getImages()";
+    
+    [wkWebView evaluateJavaScript:jsString completionHandler:^(id Result, NSError * error) {
+        
+        NSString *resurlt=[NSString stringWithFormat:@"%@",Result];
+        
+        if([resurlt hasPrefix:@"+"]){
+            
+            resurlt=[resurlt substringFromIndex:1];
+            
+        }
+        
+        NSArray * array=[resurlt componentsSeparatedByString:@"+"];
+        
+        [self.mArrayUrl removeAllObjects];
+        //添加到可变数组
+        [self.mArrayUrl addObjectsFromArray:array];
+        //移除最后一个元素（空白）
+        [self.mArrayUrl removeLastObject];
+        
+        // NSLog(@"得到所有图片url：%@",self.mArrayUrl);
+        
+    }];
+}
+
+//点击手势
+- (void)handleTapPress:(UITapGestureRecognizer *)sender{
+    
+    CGPoint touchPoint = [sender locationInView:self];
+    // 获取长按位置对应的图片url的JS代码
+    NSString *imgJS = [NSString stringWithFormat:@"document.elementFromPoint(%f, %f).src", touchPoint.x, touchPoint.y];
+    // 执行对应的JS代码 获取url
+    
+    [self.wkWebView evaluateJavaScript:imgJS completionHandler:^(id _Nullable imgUrl, NSError * _Nullable error) {
+        if (imgUrl) {
+            NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:imgUrl]];
+            UIImage *image = [UIImage imageWithData:data];
+            if (!image) {
+                NSLog(@"读取图片失败");
+                return;
+            }
+            //获取到图片image
+            
+            //图片大于0才创建
+            if (self.mArrayUrl.count>0) {
+                NSInteger currentIndex = 0;
+                //得到索引
+                for (int i= 0; i< self.mArrayUrl.count; i++) {
+                    if ([imgUrl isEqual:self.mArrayUrl[i]]) {
+                        //当前点击了第几张图片
+                        currentIndex = i;
+                    }
+                }
+                
+                //控制器跳转
+//                JZAlbumViewController *jzAlbumVC = [[JZAlbumViewController alloc]init];
+//                //当前点击图片的索引
+//                jzAlbumVC.currentIndex = currentIndex;
+//                //imgArr可以为url数组, 可以为urlString 数组, 可以为二进制 UIImage 数组
+//                jzAlbumVC.imgArr = self.mArrayUrl;
+//
+//                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:jzAlbumVC animated:NO completion:nil];
+                
+            }else{
+                //如果加载完后拿不到所有图片数组，就查看当前点击的图片
+                //控制器跳转
+//                JZAlbumViewController *jzAlbumVC = [[JZAlbumViewController alloc]init];
+//                //当前点击图片的索引
+//                jzAlbumVC.currentIndex = 0;
+//                //imgArr可以为url数组, 可以为urlString 数组, 可以为二进制 UIImage 数组
+//                jzAlbumVC.imgArr = [NSMutableArray arrayWithArray:@[imgUrl]];
+//
+//                [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:jzAlbumVC animated:NO completion:nil];
+                
+                
+            }
+        }
+    }];
+    
+    
 }
 
 #pragma mark  setter

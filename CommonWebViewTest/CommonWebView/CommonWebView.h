@@ -103,7 +103,7 @@
 - (void)goForward;
 
 /**
- 清除WKWebView的所有缓存（只能 iOS9 以后使用）
+ 清除WKWebView的所有缓存
 
  @param completion 清除成功之后的回调
  */

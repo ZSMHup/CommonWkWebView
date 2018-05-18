@@ -20,6 +20,9 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    NSString *libraryPath =  NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES).firstObject;
+    NSLog(@"%@",libraryPath);
+    
     [self setupNavigationItem];
     _webView = [CommonWebView webViewWithFrame:CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height)];
 //    _webView.isNavigationBarOrTranslucent = NO;
@@ -41,7 +44,9 @@
 
 // 刷新
 - (void)rightBarButtonItemAction {
-    [self.webView reloadData];
+    [self.webView removeAllCached:^{
+        
+    }];
 }
 
 // goForward
